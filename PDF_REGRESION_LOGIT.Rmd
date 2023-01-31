@@ -1,0 +1,944 @@
+---
+title: "REGRESSION_LOGISTIC"
+author: "joseferson da silva barreto"
+date: "2022-12-06"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+
+
+## Obejetivo
+O objetivo desse artigo é executar um modelo de regresão logistico,com o intuíto de classificar de acordo com seus atributos se o paciente com insuficiência cardiaca irá vir ou não à óbito.
+
+## Metódologia
+
+Para esta análise foi utulizado o software RStudio , junto com as linguagens 
+de programação R e python , para balanceamento do banco de dados foi utilizado o 
+oversampling com o método **Smote**  que é um dos mais utilizados quando temos um conjunto de dados  com poucas observações, para verificação  de associação entre variáveis categoricas foi utilizado o teste qui-quadrado e para as númericas como tivemos a rejeição de normalidade ,foi utilizado o teste  Man-whitney
+
+
+
+
+# Introdução 
+
+
+<!-- ```{r,echo=FALSE,out.height=400,out.width=600,fig.align = 'center'} -->
+<!-- knitr::include_graphics("images.png") -->
+
+
+<!-- ``` -->
+
+Pesquisas indicam que a insuficiencia cardíaca  afeta cerca de 65 milhões de pessoas no mundo,, ela é dividida em 2 tipos : insuficiência cardiáca com fração de ejeção reduzida e  insuficiência cardiaca com fração de ejeção preservada.
+
+**FATORES DE RISCO**
+Algumas pessoas tem maior probabilidade que outras de desenvolver insuficiência cardíaca. Ninguém pode prever com certeza quem irá desenvolvê-la. Estar ciente dos fatores de risco e ver um médico para tratamento precoce são boas estratégias para o controle da insuficiência cardíaca. Fatores de risco de insuficiência cardíaca incluem:
+
+* Pressão alta (hipertensão)
+* Ataque cardíaco (infarto do miocárdio)
+* Válvulas cardíacas anormais
+* Aumento do coração (cardiomiopatia)
+* Histórico familiar de doença cardíaca
+* Diabetes
+
+#Treze (13) características clínicas:
+
+- age: idade do paciente (anos)
+- anemia: diminuição de glóbulos vermelhos ou hemoglobina (booleano)
+- high blood pressure: se o paciente tiver hipertensão (booleano)
+- creatinine phosphokinase (CPK): nível da enzima CPK no sangue (mcg/L)
+- diabetes: se o paciente tem diabetes (booleano)
+- ejection fraction: porcentagem de sangue que sai do coração a cada contração (porcentagem)
+- platelets: plaquetas no sangue (quiloplaquetas/ mL)
+- sex: mulher ou homem (binário)
+- serum creatinin: nível de creatinina sérica no sangue (mg/dL)
+- serum sodium: nível de sódio sérico no sangue (mEq/L)
+- smoking: se o paciente fuma ou não (booleano)
+- time: período de acompanhamento (dias)
+- death event [alvo]: se o paciente faleceu durante o período de acompanhamento (booleano)
+
+
+# Carregando o Banco de Dados 
+
+```{r,warning=FALSE,message=FALSE}
+rm(list = ls())
+library(tidyverse)
+dados<-read.csv("heart_failure_clinical_records_dataset.csv",sep = ",")
+
+
+
+```
+
+### Análise exploratória  e tratamento dos dados 
+
+Toda boa análise deve ser iniciada pela análise exploratória dos dados,vamos começar  verificando se temos a presença 
+de dados faltantes utilizando o comando abaixo
+
+```{r}
+round(mean(is.na(dados))*100,10)
+```
+Como podemos obervar não temos a presença de nemhum dado faltante ,vamos verificar os tipos das nossas variáveis 
+
+
+```{r,warning=FALSE,message=FALSE}
+#glimpse(dados)
+```
+
+
+Como podemos observar algumas classes estão  como sendo inteiros ,ou seja,valores numericos ,vamos converte-las para fator 
+
+
+```{r,warning=FALSE,message=FALSE}
+dados1<-dados|>   select(anaemia,diabetes,high_blood_pressure,sex,smoking,DEATH_EVENT
+                 ) |>
+mutate_if(is.integer,as.factor) 
+
+dados2<-dados|>   select(age,creatinine_phosphokinase,ejection_fraction,platelets,serum_creatinine,serum_sodium,time
+                 )
+
+
+dados<-cbind(dados2,dados1)
+
+
+
+
+#glimpse(dados)
+
+```
+Agora vamos salvar o nosso nosso banco de dados 
+
+```{r,warning=FALSE,message=FALSE}
+write.csv(dados,"dados_edit.csv",row.names = F,sep = ";")
+```
+
+ 
+```{r,echo=FALSE}
+#Base_1 = dados %>% filter( DEATH_EVENT == 1 )
+#Base_0 =dados   %>% filter( DEATH_EVENT == 0  ) 
+
+
+#Base_0_balan = Base_0[ sample(x=1:dim(Base_0)[1], size = dim(Base_1)[1], replace = F ),   ]
+#banco_balanced <- rbind(Base_1, Base_0_balan)
+
+#prop.table( table(banco_balanced$DEATH_EVENT  ) )
+
+
+#write.csv(banco_balanced,"dados1_edit.csv",row.names = F,sep = ";")
+
+
+#write.csv(dados,"dados1_edit.csv",row.names = F,sep = ";")
+```
+
+
+
+
+
+##  Análise Exploratória 
+
+ Finalmente após a primeira etapa de preparação dos dados vamos iniciar a análise exploratória  de forma prática utilizando a linguagem python , para isso vamos utilizar os seguintes comandos 
+ 
+```{python,eval=FALSE}
+import pandas as pd 
+
+import numpy as np 
+import sweetviz as sv
+import warnings
+
+
+warnings.filterwarnings("ignore") 
+
+
+dados=pd.read_csv("dados1_edit.csv")
+
+my_report = sv.analyze(dados) # cria o reporte e chama de my_report
+```
+
+
+```{python}
+#my_report.show_html()
+
+```
+
+
+```{python,eval=FALSE}
+msk = np.random.rand(len(dados)) < 0.7
+train = dados[msk]
+test = dados[~msk]
+
+#train.head() # 80%
+```
+
+
+```{python,eval=FALSE}
+my_report = sv.compare([train, 'training set'], [test, 'testing set'])
+
+#my_report.show_html()
+```
+
+
+```{python,eval=FALSE}
+#dados1=dados[0:11]
+my_report = sv.compare_intra(dados, dados['DEATH_EVENT']==1,['morreu','não morreu'])
+#my_report.show_html()
+
+
+```
+
+Clique aqui para ver o relatório <https://josefersonbarreto.github.io/analise_exp/>
+
+#  Voltando para o R
+ Após a  análise exploratória vamos  voltar a utlizar a limguagem R,vamos observar as distribuições de nossas variaveis númericas 
+ 
+```{r,warning=FALSE,message=FALSE}
+#dados ja balanceado
+dados<- read.csv("dados_edit.csv",sep = ",")
+
+
+library(tidyverse)
+glimpse(dados)
+
+
+dados[8:13]<-dados[8:13] %>% mutate_if(is.integer,as.factor) 
+dados$age<-round(dados$age,0)
+
+
+
+# qplot(dados$age,
+#         main = "Histogram energy",
+#         xlab = "valores",
+#         ylab = "frequencias",
+#         fill=I("orange"),
+#         col=I("black")  ,
+#           col="red", 
+#         fill="green", 
+#         alpha= .9) + 
+#      geom_density(alpha = 0.5)+
+  library(plotly)
+  
+  ff<-ggplot(dados, aes(x = dados$age)) +
+  
+  geom_histogram(aes(y = ..density..),
+                 binwidth = 1,     # Amplitude da classe
+                 fill = 'dodgerblue',
+                 color = 'black')+ # Linha de densidade
+  
+  stat_function(fun = dnorm, color='red', size = 2,
+                args = list(mean = mean(dados$age),
+                            sd = sd(dados$age)))+   
+  
+  theme_light()
+ 
+
+
+```
+
+ pelo gráfico acima podemos perceber que a variável **age(idade)**  não aparenta seguir a distribuição normal,mas vamos fazer o teste para confirmar,ma antes vamos ver o boxplot
+ 
+```{r,warning=FALSE,message=FALSE}
+ggplot(dados, aes(x = DEATH_EVENT, y = age, fill = DEATH_EVENT)) + 
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape = 8,
+               size = 2, color = "white")
+
+boxplot (dados$age~dados$DEATH_EVENT,
+        main = "Boxplot para  age ",
+        xlab = "valence",
+        ylab = "liked",
+        las = 1,
+        col = c ("light green", "steelblue1"),
+        names = c("não morreu", "morreu")
+        )
+
+# ggplot(ds, aes(x = label, y = temperature, fill = label)) + 
+#   geom_boxplot() +
+#   stat_summary(fun = "mean", geom = "point", shape = 8,
+#                size = 2, color = "white")
+```
+ 
+ 
+ 
+```{r,warning=FALSE,message=FALSE}
+
+dados$diferenaliked<-as.numeric(dados$DEATH_EVENT)-dados$age
+shapiro.test(dados$diferenaliked)
+
+
+
+```
+ Logo, podemos afirma que não há evidências que a variável  **age** siga distribuição normal, ou seja ,vamos utilizar o teste Mann-Whitney  para verificar  asociação entre nossa variável resposta com **age**
+ 
+ 
+```{r,warning=FALSE,message=FALSE}
+wilcox.test(dados$age~dados$DEATH_EVENT, data=dados,correct=T)
+
+```
+ 
+ 
+Como o Pvalor < 0,05, rejeitamos a hipótese nula em favor da hipótese alternativa ,logo , a médiana da diferênça dos valores é realmente diferente de zero , nesse caso, podemos afirmar que existe associação significativa entre as variáveis .
+
+
+### creatinine_phosphokinase  
+
+```{r,warning=FALSE,message=FALSE}
+
+
+
+boxplot (dados$creatinine_phosphokinase~dados$DEATH_EVENT,
+        main = "Boxplot para  creatinine_phosphokinase ",
+        xlab = "valence",
+        ylab = "liked",
+        las = 1,
+        col = c ("light green", "steelblue1"),
+        names = c("não morreu", "morreu")
+        )
+```
+É possível verificar que temos a presença de outliers nessa variável 
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r,warning=FALSE,message=FALSE}
+# ggplot(dados, aes(x = dados$creatinine_phosphokinase)) +
+#   
+#   geom_histogram(aes(y = ..density..),
+#                  binwidth = 1,     # Amplitude da classe
+#                  fill = 'dodgerblue',
+#                  color = 'black')+ # Linha de densidade
+#   
+#   stat_function(fun = dnorm, color='red', size = 2,
+#                 args = list(mean = mean(dados$creatinine_phosphokinase),
+#                             sd = sd(dados$creatinine_phosphokinase)))+   
+#   
+#   theme_light()
+
+wilcox.test(dados$creatinine_phosphokinase~dados$DEATH_EVENT, data=dados,correct=T)
+
+
+ 
+```
+
+Como Pvalor > 0,05 ,rejeitamos a hipótese nula em favor da hipótese alternativa ,logo , a médiana da diferênça dos valores é realmente diferente de zero , nesse caso, podemos afirmar que existe associação significativa entre as variáveis .
+
+
+
+###  ejection_fraction
+
+```{r,warning=FALSE,message=FALSE}
+
+boxplot (dados$ejection_fraction~dados$DEATH_EVENT,
+        main = "Boxplot para  creatinine_phosphokinase ",
+        xlab = "valence",
+        ylab = "DEATH_EVENT",
+        las = 1,
+        col = c ("light green", "steelblue1"),
+        names = c("não morreu", "morreu")
+        )
+
+```
+ Podemos perceber a presença de outliers, vamos verificar  se  a variável segue distribuição normal 
+ 
+ 
+ 
+```{r,warning=FALSE,message=FALSE}
+dados$DEATH_EVENT<-as.numeric(dados$DEATH_EVENT)
+options(scipen=999)
+diferenaliked<-dados$DEATH_EVENT-dados$ejection_fraction
+shapiro.test(diferenaliked)
+```
+ 
+ Como o Pvalor < 0,05 , não rejeita-se a hipótese nula . Nesse sentido , temos que não existe normalidade entre as variáveis testadas , Logo ,o teste T independente não é o mais indacado , assim vamos utilizar o teste Wilcoxon:
+ 
+ 
+```{r,warning=FALSE,message=FALSE}
+
+
+
+wilcox.test(dados$ejection_fraction~dados$DEATH_EVENT, data=dados,correct=T)
+```
+ Como Pvalor > 0,05 ,rejeitamos a hipótese nula em favor da hipótese alternativa ,logo , a médiana da diferênça dos valores é realmente diferente de zero , nesse caso, podemos afirmar que existe associação significativa entre as variáveis .
+ 
+ 
+ 
+
+ fazendo o mesmo processo para  as demais 
+```{r,warning=FALSE,message=FALSE}
+#install.packages("gtsummary")
+library(gtsummary)
+
+
+wilcox.test(dados$platelets~dados$DEATH_EVENT, data=dados,correct=T)
+
+wilcox.test(dados$serum_creatinine~dados$DEATH_EVENT, data=dados,correct=T)
+
+wilcox.test(dados$serum_sodium~dados$DEATH_EVENT, data=dados,correct=T)
+wilcox.test(dados$time~dados$DEATH_EVENT, data=dados,correct=T)
+
+variaveis<-c("platelets","serum_creatinine","serum_sodium","time")
+valor_test_W<-c("0.6833","0.00000005241","0.0008524","0.000000000000002719")
+  
+data.frame(cbind(variaveis,valor_test_W))
+
+dados$DEATH_EVENT<-as.factor(dados$DEATH_EVENT)
+```
+ 
+ Apenas  a variável platelets apresenta pvalor maior que 0,05 ,logo, ela não possui associação com a variável resposta , agora vamos verificar  associação entre nossas variáveis categóricas e  a nossa variável resposta:
+ 
+## Teste Qui-Quadrado para as variáveis resposta 
+ 
+ 
+ 
+ O teste Qui-quadrado é um teste não-paramétrico utilizado, basicamente, para três finalidades específicas, que são:
+
+Verificar as distribuições de probabilidades de cada categoria de uma variável em relação a um valor teórico esperado (aderência),
+
+Verificar se as distribuições das categorias são as mesmas para diferentes subpopulações de interesse (homogeneidade)
+
+Verificar se duas variáveis categóricas são independentes (independência).
+
+Apesar das diferenças em relação às perguntas de pesquisa, o sistema matemático é o mesmo.
+
+Hipóteses
+$H_0 =$ não há asociação entre as vareiáveis instrumentalness e liked , para $Pvalor > 0,05$
+
+$H_1=$ há asociação entre as vareiáveis instrumentalness e liked, para $pvalor ≤ 0,05$
+
+Antes temos que transformar a varíavel instrumentalness em intervalo :
+
+
+
+
+```{r,warning=FALSE,message=FALSE}
+library(tidyverse)
+dados3<-dados |>
+  dplyr::select(where(is.factor)) 
+
+#glimpse(dados)
+
+
+chisq.test(dados3$anaemia,dados3$DEATH_EVENT)
+
+
+chisq.test(dados3$diabetes,dados3$DEATH_EVENT)
+
+chisq.test(dados3$high_blood_pressure,dados3$DEATH_EVENT)
+
+chisq.test(dados3$DEATH_EVENT,dados3$sex)
+
+chisq.test(dados3$smoking,dados3$DEATH_EVENT)
+
+
+library(gmodels)
+
+# CrossTable(dados3$DEATH_EVENT,dados1$sex, 
+#            expected = T, prop.r = F, prop.c = F, prop.t = T, prop.chisq = F, 
+#            chisq = T, fisher = T,
+#            format = "SPSS")
+
+
+chisq.test(dados$anaemia,dados$DEATH_EVENT)
+
+#factor(dados$anaemia,levels = c("no","yes"),labels = c("0","1"))
+
+
+```
+
+Pelo teste qui-quadrado nenhuma variável categórica apresentou 
+```{r,warning=FALSE,message=FALSE}
+library(randomForest)
+
+
+
+importancia  = randomForest(DEATH_EVENT~ ., data = dados)
+
+col = importance(importancia)
+options(scipen=999) 
+par(bg = '#586573')
+varImpPlot(importancia)
+```
+
+
+Como vimos as variáveis categoricas apresentam uma baixa importancia para o modelo,mas por enquanto vamos mante-las 
+,nosso próximo passo é converter as variáveis númericas para variáveis  dammies , para isso temos que primeiro convertelas para variáveis categóricas:
+```{r,warning=FALSE,message=FALSE}
+dados4<-dados |>
+  dplyr::select(where(is.numeric)) 
+
+# as variaveis que serão convertidas são 
+
+
+
+
+dados5<-dados 
+
+dados5<-dados |> arrange(dados$age)
+FX_age <- cut(dados5$age,
+                   breaks=c(-Inf,50, 60, 70,80, Inf),
+                   labels=c("ate50","50_60","60_70","70_80", "80mais"))
+
+
+dados5$FX_age<-FX_age
+
+# faazendo o mesmo para variável creatinine_phosphokinase
+
+dados5<-dados5 |> arrange(dados5$creatinine_phosphokinase)
+
+
+
+FX_creat <- cut(dados5$creatinine_phosphokinase,
+                   breaks=c(-Inf,100,200,400, 800, Inf),
+                   labels=c("ate100","100_200","200_400","400_800","800mais"))
+
+dados5$FX_creat<-FX_creat
+
+
+  
+
+#faazendo para variavel ejection_fraction
+
+dados5<-dados5 |> arrange(dados5$ejection_fraction)
+
+
+
+FX_ejec <- cut(dados5$ejection_fraction,
+                   breaks=c(-Inf,30,40, Inf),
+                   labels=c("ate30","30_40","40mais"))
+
+
+dados5$FX_ejec<-FX_ejec
+
+
+
+# faazendo para variavel platelets
+
+
+dados5<-dados5 |> arrange(dados5$platelets)
+
+
+FX_plat <- cut(dados5$platelets,
+                   breaks=c(-Inf,200000,250000,289000, Inf),
+                   labels=c("ate200000","200000_250000", "250000_289000","289000mais"))
+
+
+
+
+# faazendo para variavel serum_creatinine
+
+
+
+dados5<-dados5 |> arrange(dados5$serum_creatinine)
+
+FX_serum <- cut(dados5$serum_creatinine,
+                   breaks=c(-Inf,0.90,1.10,1.83, Inf),
+                   labels=c("ate0.90","0.90_1.10", "1.10_1.83","1.83mais"))
+
+
+
+
+dados5$FX_serum<-FX_serum
+# faazendo para variavel serum_sodium
+
+dados5<-dados5 |> arrange(dados5$serum_sodium) 
+
+
+FX_serum_so <- cut(dados5$serum_sodium,
+                   breaks=c(-Inf,134,137, Inf),
+                   labels=c("ate134","134_137","137mais"))
+
+
+
+dados5$FX_serum_so<-FX_serum_so
+
+# fazendo para variavel time
+
+
+dados5<-dados5 |> arrange(dados5$time) 
+
+
+FX_time <- cut(dados5$time,
+                   breaks=c(-Inf, 55,103,190, Inf),
+                   labels=c("ate55","55_103","103_190","190mais"))
+
+
+dados5$FX_time<-FX_time
+
+
+dados5<-dados5[-14]
+
+
+alvo= dados5[6]
+
+
+#write.csv(dados5,"dados_p_dammies.csv",row.names = F,sep = ";")
+ 
+```
+
+O proximo passo é transformar as variaveis em dammy
+
+
+
+```{r,warning=FALSE,message=FALSE}
+dados<-read.csv("dados_p_dammies.csv")
+
+library(tidyverse)
+
+#dados[1:6]<-as.character(dados[1:6])
+
+dados$DEATH_EVENT<-factor(dados$DEATH_EVENT,levels = c("1","2") ,labels = c("0","1"))
+#dados[1:13]<-dados|>
+#mutate_if(factor)
+
+cols=colnames(dados)
+
+
+dados$anaemia<-as.factor(dados$anaemia)
+
+dados$diabetes<-as.factor(dados$diabetes)
+
+dados$high_blood_pressure<-as.factor(dados$high_blood_pressure)
+
+
+dados$sex<-as.factor(dados$sex)
+
+
+dados$smoking<-as.factor(dados$smoking)
+
+dados$DEATH_EVENT<-as.factor(dados$DEATH_EVENT)
+
+dados$FX_age<-as.factor(dados$FX_age)
+
+
+dados$FX_creat<-as.factor(dados$FX_creat)
+
+
+dados$FX_ejec<-as.factor(dados$FX_ejec)
+
+
+dados$FX_plat<-as.factor(dados$FX_plat)
+
+dados$FX_serum<-as.factor(dados$FX_serum)
+
+
+dados$FX_serum_so<-as.factor(dados$FX_serum_so)
+
+
+dados$FX_time<-as.factor(dados$FX_time)
+
+#glimpse(dados)
+
+
+
+#table(dados$anaemia,dados$DEATH_EVENT)
+
+
+#round(prop.table(table(dados$anaemia,dados$DEATH_EVENT)),2)
+
+
+
+chisq.test(dados$DEATH_EVENT,dados$anaemia)
+
+```
+Criando as variavies dammys
+
+
+
+```{r,warning=FALSE,message=FALSE}
+
+
+library(fastDummies)
+### variaveis que vamos criar as dummies
+#X = data.frame( FX_GLUCOSE, FX_PREGNANT, FX_PRESSURE, FX_INSULIN, FX_MASS, FX_TRICEPS, FX_PEDIGREE, FX_AGE )
+
+alvo=dados$DEATH_EVENT
+x=dados[-1:-13]
+## Aplicando a funcao que vai gerar todas as dummies
+dum2 <- dummy_cols(x, remove_selected_columns = T, remove_most_frequent_dummy = F) # dummies mod1
+
+### Novo dataset com as dummies
+bd_dum = data.frame( alvo,  dum2  )
+
+```
+
+
+
+Finalmente temos nosso dataset criado ,agora podemos  criar o nosso modelo, vamos criar nosso primeiro modelo que servirá como base 
+
+
+
+
+
+# Balanceamento do Banco de Dados
+
+
+ Como nossos dados  não estão com uma proporção equivalente  em nossa variável target  então vamos  reaalizar  o balanciamento dos nossos dados , para balancear nosso banco de dados vamos utilizar o **oversampling**   e um dos metodos mais utilizados em ciência de dados que é o metodo **SMOTE** que basicamente gera novas observações de forma randomizada para o nosso modelo, como temos poucas observações este método é uma boa opção .
+ 
+
+
+```{r,warning=FALSE,message=FALSE}
+# como temos poucas observações vamos usar o metodo oversampling metodo smoote
+
+
+
+
+# Seed
+set.seed(301)
+
+# Pacote
+#install.packages("DMwR")
+install.packages( "C:/Users/joseferson/Documents/joseferson barreto/DMwR_0.4.1.tar.gz", repos=NULL, type="source" )
+library(DMwR)
+
+# SMOTE - Synthetic Minority Oversampling Technique
+
+dados_treino_balanceados <- SMOTE(alvo ~ ., bd_dum, perc.over = 400, perc.under = 100)
+# 
+# #teste<-round(SMOTE(DEATH_EVENT ~ ., dados_treino, perc.over = 1, perc.under = 1),0)
+# # Checando o balanceamento de classe da variável target
+prop.table(table(dados_treino_balanceados$alvo)) * 100
+#
+```
+Podemos perceber que o nosso modelo agora está melhor balanceado.
+
+
+
+
+# Gerendo os Dados  de Treino e Teste 
+
+```{r,warning=FALSE,message=FALSE}
+# 
+# teste<-dados_treino_balanceados |> arrange(DEATH_EVENT)
+# 
+# 
+# teste<-dados_treino_balanceados |> arrange(dados_treino_balanceados$FX_age_50_60)
+# 
+# 
+set.seed(100)
+train <- sample(nrow(dados_treino_balanceados), 0.70*nrow(dados_treino_balanceados), replace = FALSE)
+TrainSet <- dados_treino_balanceados[train,]
+TestSet <- dados_treino_balanceados[-train,]
+# 
+
+table(TrainSet$alvo)
+# 
+mod1<- glm(alvo ~ .
+           ,family = binomial(link='logit') ,na.action = na.fail,
+           data = TrainSet
+)
+
+
+summary(mod1)
+```
+
+É notório que algumas variáveis preditoras apresentaram valores ausentes  em seus resultados ,vamos usar a função **step** com base no modelo **mod1** que ajuda a encontrar o melhor modelo ,
+```{r,warning=FALSE,message=FALSE}
+# modelo step 
+#step(mod1)
+# 
+# 
+# 
+mod2<-glm(formula = alvo ~ FX_age_60_70 + FX_age_70_80 + FX_age_80mais +
+      FX_creat_100_200 + FX_creat_200_400 + FX_creat_400_800 +
+      FX_creat_800mais + FX_ejec_30_40 + FX_ejec_40mais + FX_plat_200000_250000 +
+      FX_plat_250000_289000 + FX_plat_289000mais + FX_serum_0.90_1.10 +
+      FX_serum_1.10_1.83 + FX_serum_1.83mais + FX_serum_so_134_137 +
+      FX_serum_so_137mais + FX_time_103_190 + FX_time_190mais +
+      FX_time_55_103, family = binomial(link = "logit"), data = TrainSet,
+    na.action = na.fail)
+# 
+# 
+summary(mod2)
+#
+```
+
+O modelo **mod2** foi o modelo encontrado pela função step com base no modelo 1,vemos que algumas variáveis não forma seguinificativas para o modelo, vamos criar um terceiro modelo que será baseado no modelo **mod1** sem  as variáveis que apresentaram valores ausentes  
+
+```{r,warning=FALSE,message=FALSE}
+#colnames(TrainSet)
+
+
+
+mod3<-glm(formula =  alvo~  +FX_age_50_60+   FX_age_60_70+FX_age_70_80+FX_age_80mais +        FX_creat_100_200+FX_creat_200_400  +   
+  FX_creat_400_800+ FX_creat_800mais+FX_ejec_30_40+       
+ FX_ejec_40mais         +FX_plat_200000_250000 +FX_plat_250000_289000+
+ FX_plat_289000mais+     FX_serum_0.90_1.10+    FX_serum_1.10_1.83+   
+ FX_serum_1.83mais      +FX_serum_so_134_137+   FX_serum_so_137mais+  
+   FX_time_103_190+  FX_time_190mais+  FX_time_55_103,family = binomial(link = "logit"), data = TrainSet,
+    na.action = na.fail)
+
+
+
+summary(mod3)
+```
+Percebe-se que no modelo **mod3** várias variáveis  não apresentaram significância para o modelo,logo ,vamos criar o modelo **mod4** sem essas variáveis 
+
+```{r,warning=FALSE,message=FALSE}
+mod4<-glm(formula =  alvo~        FX_creat_100_200+FX_creat_200_400  +   
+  FX_creat_400_800+ FX_creat_800mais+FX_ejec_30_40+       
+ FX_ejec_40mais          +FX_plat_250000_289000+
+ FX_plat_289000mais+     FX_serum_0.90_1.10+    FX_serum_1.10_1.83+   
+ FX_serum_1.83mais      +FX_serum_so_134_137+   FX_serum_so_137mais+  
+   FX_time_103_190+  FX_time_190mais+  FX_time_55_103,family = binomial(link = "logit"), data = TrainSet,
+    na.action = na.fail)
+
+
+
+summary(mod4)
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+mod5<-glm(formula = alvo ~ FX_age_60_70 + FX_age_70_80 + FX_age_80mais + 
+    FX_creat_100_200 + FX_creat_200_400 + FX_creat_400_800 + 
+    FX_creat_800mais + FX_ejec_30_40 + FX_ejec_40mais + FX_plat_250000_289000 + 
+    FX_serum_0.90_1.10 + FX_serum_1.10_1.83 + FX_serum_1.83mais + 
+    FX_serum_so_134_137 + FX_serum_so_137mais + FX_time_103_190 + 
+    FX_time_190mais + FX_time_55_103, family = binomial(link = "logit"), 
+    data = TrainSet, na.action = na.fail)
+
+
+summary(mod5)
+```
+
+Modelo 5 é o modelo step baseado no modelo 3 que é o modelo com todas as variáveis onde cada classe dammy é tratada como **k-1** removendo as colunas que estavam como NA no primeiro modelo.
+
+
+# Avaliação da Performance do modelo 
+ O nosso modelo mod2 que é o nosso modelo final, o critério utilizado para seleção do modelo foi aquele que apresentou maiores resultados de sensibilidade e melhor equilíbrio no Gráfico das probabilidades,logo, o modelo 2 foi o escolhido .  
+Na seguência vamos fazer previsões usaremos a função predict  e os atributos no dataset de teste , elém disso o tipo é response pois queremos a variável resposta. 
+
+```{r,warning=FALSE,message=FALSE}
+# 
+# 
+# 
+# analisando a curva rock e acuracia
+
+library(caret)
+probs_logistica <- predict(mod2, TestSet ,type='response' )
+pred_log_test <-ifelse( probs_logistica > 0.5, 1 , 0)
+tab_test = table(pred_log_test,TestSet$alvo)
+confusionMatrix( tab_test )
+```
+
+## Verificando a curva Rock 
+
+```{r,warning=FALSE,message=FALSE}
+library(pROC)
+
+
+pred_roc_reg_log <- 
+  dplyr::tibble(
+    probs_logistica,
+    "survived" = as.factor(as.numeric(TestSet$alvo))
+  ) %>% arrange(desc(probs_logistica))
+
+
+
+roc_reg_log <- pROC::roc(pred_roc_reg_log$survived , pred_roc_reg_log$probs_logistica, percent = TRUE)
+
+
+```
+
+```{r,eval=FALSE,echo=FALSE}
+library(PRROC)
+
+PRROC_obj <- roc.curve(scores.class0 = pred_roc_reg_log$survived, weights.class0=pred_roc_reg_log$probs_logistica,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+
+
+```{r}
+
+
+library(ROCR)
+
+df <- data.frame(pred_roc_reg_log)
+pred <- prediction(as.numeric(pred_roc_reg_log$probs_logistica), as.numeric(pred_roc_reg_log$survived))
+
+plot.roc.curve <- function(predictions, title.text){
+  perf <- performance(predictions, "tpr", "fpr")
+  plot(perf,colorize=TRUE,lty = 1, lwd = 2,
+       main = title.text, cex.main = 0.9, cex.lab = 0.8,xaxs = "i", yaxs = "i")
+  abline(0,1, col = "red")
+  auc <- performance(predictions,"auc")
+  auc <- unlist(slot(auc, "y.values"))
+  auc <- round(auc,2)
+  legend(0.4,0.4,legend = c(paste0("AUC: ",auc)), cex = 0.9, bty = "n", box.col = "white")
+  
+}
+
+plot.roc.curve(pred,"rock curv")
+
+
+prop.table(table(TestSet$alvo))
+```
+
+
+Aqui podemos ver a curva ROC, onde podemos observar  a relação entre a taxa de falsos positivos e a taxa de verdadeiros positivos, a linha vermelha é uma espécie de linha de corte, que representa 50% de precisão , a nossa meta é manter  a linha preta no primeiro quadrante e o mais próximo de 1,logo,nosso modelo apresenta bons resultados.
+
+
+
+
+Vamos observar os graficos das  classificações 
+
+
+```{r}
+
+
+
+#### Grafico das probabilidades
+
+library(ggplot2)
+curvas = data.frame( probs = probs_logistica,  grupo = as.factor(TestSet$alvo) )
+cols <- c("darkred", "darkblue")
+
+ggplot(curvas, aes(x = probs, color = grupo)) +
+  geom_density(alpha = 0.7, aes(x=probs, group=grupo, fill=grupo), adjust=2 ) + 
+  scale_fill_manual(values = cols)
+
+
+
+
+
+
+
+```
+ as figuras 0 e 1) no gráfico acima  mostra a  Representação das curvas de distribuição de resultados para testes (testes 0 e 1) que visam classificar se o paciente  morreu ou não morreu. 
+Quanto mais distantes as curvas estiverem , melhor é a classificação feita pelo modelo,podemos perceber que o modelo **mod2** é capaz de realizar boas classificações.
+
+
+
+
+
+# Conclusão 
+ 
+ Podemos perceber que o nosso modelo 2(mod2) ,o modelo step baseado no modelo 1 apresentou boas métricas ,sendo um dos principais candidatos a implementação, ou seja, é perceptível que os modelos de regressão logistica são  bastante eficases quando temos  variáveis dicotômicas e um pré-processamento adequado, um possível próximo passo para nosso trabalho séria  realizar o deploy do modelo,já que o modelo final(mod2) apresentou boas métricas tanto na matriz de confusão quanto na curva ROC.
+ 
+ 
+  
+# Referências 
+
+OQUE É INSUFICIÊNCIA CARDIÁCA? <https://www.medtronic.com/br-pt/your-health/conditions/heart-failure.html> . Acesso em :20/11/22   
+
+
+QUI-QUADRADO <https://www.medtronic.com/br-pt/your-health/conditions/heart-failure.html>Acesso em :20/11/22   
+
+
+APLICAÇÃO DE TESTES DE NORMALIDADE EM PUBLICAÇÕES NACIONAIS: LEVANTAMENTO BIBLIOGRÁFICO -
+Machado, A. F., de Almeida, A. C., Araújo, A. C., Ferrari, D., Lemes, Ítalo R., Faria, N. C. S., Lima, T. de S., & Fernandes, R. A. (2015). APLICAÇÃO DE TESTES DE NORMALIDADE EM PUBLICAÇÕES NACIONAIS: LEVANTAMENTO BIBLIOGRÁFICO. Colloquium Vitae. ISSN: 1984-6436, 6(1), 01–10. Recuperado de <https://revistas.unoeste.br/index.php/cv/article/view/1003>
+
+
+
+Hoo ZH, Candlish J, Teare D. What is an ROC curve? Emerg Med J. 2017;34(6):357-9. <http://dx.doi.org/10.1136/emermed-2017-206735> PMid:28302644.
+
+Polo TCF, Miot HA. Aplicações da curva ROC em estudos clínicos e experimentais. J Vasc Bras. 2020;19: e20200186.
+<https://doi.org/10.1590/1677-5449.200186>
